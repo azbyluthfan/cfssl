@@ -1,0 +1,36 @@
+image: golang:1.13-buster
+
+variables:
+  REPO_NAME: gitlab.com/azby-luthfan/cfssl
+  ARTIFACTS_DIR: artifacts
+  BIN_NAME: cfssl
+  
+before_script:
+  - mkdir -p ~/.ssh/
+  - echo -e "Host gitlab.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+  - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+  - mkdir -p $GOPATH/src/$(dirname $REPO_NAME)
+  - ln -svf $CI_PROJECT_DIR $GOPATH/src/$REPO_NAME
+  - cd $GOPATH/src/$REPO_NAME
+  - git config --global url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+
+stages:
+  - build
+  - deploy
+
+build_dev:
+  stage: build
+  script:
+    - go mod download
+    - make
+  artifacts:
+    paths:
+      - cfssl
+      
+deploy_dev:
+  stage: deploy
+  script:
+    - ssh -o "StrictHostKeyChecking=no" dev@dev.incogniti.id "sudo /usr/bin/systemctl stop cfssl"
+    - scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cfssl dev@dev.incogniti.id:"$FOLDER_PKI"
+    - ssh -o "StrictHostKeyChecking=no" dev@dev.incogniti.id "sudo /usr/bin/systemctl start cfssl"
